@@ -31,6 +31,8 @@ module Oauth
         @token_url = options[:token_url]
         @jwks_uri = options[:jwks_uri]
         @userinfo_url = options[:userinfo_url]
+        @issuer = options[:issuer]
+        @audience = options[:audience] || options[:client_id]
 
         validate_required_options!
         generate_pkce_params
@@ -98,6 +100,8 @@ module Oauth
         puts "  Token URL: #{@token_url}"
         puts "  JWKS URI: #{@jwks_uri}" if @jwks_uri
         puts "  UserInfo URL: #{@userinfo_url}" if @userinfo_url
+        puts "  Expected Issuer: #{@issuer}" if @issuer
+        puts "  Expected Audience: #{@audience}" if @audience
       end
 
       def build_authorization_url
@@ -162,16 +166,23 @@ module Oauth
           jwks = fetch_jwks(@jwks_uri)
 
           puts "Decoding and validating ID token..."
+          jwt_options = {
+            algorithm: 'RS256',
+            jwks: jwks,
+            verify_iss: @issuer ? true : false,
+            verify_aud: @audience ? true : false
+          }
+
+          jwt_options[:iss] = @issuer if @issuer
+          jwt_options[:aud] = @audience if @audience
+
+          puts "JWT validation options: #{jwt_options.inspect}"
+
           decoded_token, headers = JWT.decode(
             id_token,
             nil,
             true,
-            {
-              algorithm: 'RS256',
-              jwks: jwks,
-              verify_iss: false,
-              verify_aud: false
-            }
+            jwt_options
           )
 
           payload = decoded_token
@@ -234,7 +245,7 @@ module Oauth
           puts "UserInfo claims:"
           userinfo.each { |k, v| puts "  #{k}: #{v}" }
 
-          puts "\\nValidating ID token against UserInfo..."
+          puts "Validating ID token against UserInfo..."
           validate_claims_consistency(id_token_payload, userinfo)
 
         rescue StandardError => e

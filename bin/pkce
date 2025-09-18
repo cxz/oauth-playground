@@ -46,6 +46,14 @@ OptionParser.new do |opts|
     options[:userinfo_url] = v
   end
 
+  opts.on("--issuer ISS", "Expected issuer (iss) for ID token validation") do |v|
+    options[:issuer] = v
+  end
+
+  opts.on("--audience AUD", "Expected audience (aud) for ID token validation (defaults to client_id)") do |v|
+    options[:audience] = v
+  end
+
   opts.on("-h", "--help", "Show this help") do
     puts opts
     exit

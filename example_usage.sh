@@ -9,4 +9,6 @@ bin/pkce \
   --auth-url "https://bbb/oauth/authorize" \
   --token-url "https://bbb/oauth/token" \
   --jwks-uri "https://bbb/oauth/discovery/keys" \
-  --userinfo-url "https://bbb/oauth/userinfo"
+  --userinfo-url "https://bbb/oauth/userinfo" \
+  --issuer "https://bbb" \
+  --audience "your-client-id"
