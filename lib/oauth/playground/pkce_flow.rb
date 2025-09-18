@@ -76,12 +76,12 @@ module Oauth
       private
 
       def validate_required_options!
-        required = [:client_id, :redirect_uri, :auth_url, :token_url]
+        required = %i[client_id redirect_uri auth_url token_url]
         missing = required.select { |key| instance_variable_get(:"@#{key}").nil? }
 
-        if missing.any?
-          raise ArgumentError, "Missing required options: #{missing.join(', ')}"
-        end
+        return unless missing.any?
+
+        raise ArgumentError, "Missing required options: #{missing.join(", ")}"
       end
 
       def generate_pkce_params
@@ -146,75 +146,69 @@ module Oauth
         puts "\nTokens received successfully!"
         puts "Access Token: #{token.token}"
         puts "Refresh Token: #{token.refresh_token}" if token.refresh_token
-        puts "Token Type: #{token.params['token_type']}"
-        puts "Expires In: #{token.params['expires_in']} seconds" if token.params['expires_in']
-        puts "ID Token: #{token.params['id_token']}" if token.params['id_token']
+        puts "Token Type: #{token.params["token_type"]}"
+        puts "Expires In: #{token.params["expires_in"]} seconds" if token.params["expires_in"]
+        puts "ID Token: #{token.params["id_token"]}" if token.params["id_token"]
 
-        if token.params['id_token'] && @jwks_uri
+        if token.params["id_token"] && @jwks_uri
           puts "\nStep 6: Validate ID Token"
-          validate_id_token(token.params['id_token'], token.token)
+          validate_id_token(token.params["id_token"], token.token)
         end
-
       rescue OAuth2::Error => e
         puts "OAuth2 Error: #{e.message}"
         puts "Response: #{e.response.body}" if e.response
       end
 
       def validate_id_token(id_token, access_token)
-        begin
-          puts "Fetching JWKS from: #{@jwks_uri}"
-          jwks = fetch_jwks(@jwks_uri)
+        puts "Fetching JWKS from: #{@jwks_uri}"
+        jwks = fetch_jwks(@jwks_uri)
 
-          puts "Decoding and validating ID token..."
-          jwt_options = {
-            algorithm: 'RS256',
-            jwks: jwks,
-            verify_iss: @issuer ? true : false,
-            verify_aud: @audience ? true : false
-          }
+        puts "Decoding and validating ID token..."
+        jwt_options = {
+          algorithm: "RS256",
+          jwks: jwks,
+          verify_iss: @issuer ? true : false,
+          verify_aud: @audience ? true : false
+        }
 
-          jwt_options[:iss] = @issuer if @issuer
-          jwt_options[:aud] = @audience if @audience
+        jwt_options[:iss] = @issuer if @issuer
+        jwt_options[:aud] = @audience if @audience
 
-          puts "JWT validation options: #{jwt_options.inspect}"
+        puts "JWT validation options: #{jwt_options.inspect}"
 
-          decoded_token, headers = JWT.decode(
-            id_token,
-            nil,
-            true,
-            jwt_options
-          )
+        decoded_token, = JWT.decode(
+          id_token,
+          nil,
+          true,
+          jwt_options
+        )
 
-          payload = decoded_token
-          puts "ID Token validation successful!"
-          puts "Token claims:"
-          payload.each { |k, v| puts "  #{k}: #{v}" }
+        payload = decoded_token
+        puts "ID Token validation successful!"
+        puts "Token claims:"
+        payload.each { |k, v| puts "  #{k}: #{v}" }
 
-          if @nonce && payload['nonce'] != @nonce
-            puts "⚠️  WARNING: Nonce mismatch! Expected: #{@nonce}, Got: #{payload['nonce']}"
-          else
-            puts "✅ Nonce validation passed"
-          end
-
-          if @userinfo_url
-            puts "\\nStep 7: Validate against UserInfo endpoint"
-            validate_userinfo(access_token, payload)
-          end
-
-        rescue JWT::DecodeError => e
-          puts "❌ ID Token validation failed: #{e.message}"
-        rescue StandardError => e
-          puts "❌ Error validating ID token: #{e.message}"
+        if @nonce && payload["nonce"] != @nonce
+          puts "⚠️  WARNING: Nonce mismatch! Expected: #{@nonce}, Got: #{payload["nonce"]}"
+        else
+          puts "✅ Nonce validation passed"
         end
+
+        if @userinfo_url
+          puts "\\nStep 7: Validate against UserInfo endpoint"
+          validate_userinfo(access_token, payload)
+        end
+      rescue JWT::DecodeError => e
+        puts "❌ ID Token validation failed: #{e.message}"
+      rescue StandardError => e
+        puts "❌ Error validating ID token: #{e.message}"
       end
 
       def fetch_jwks(jwks_uri)
         uri = URI(jwks_uri)
         response = Net::HTTP.get_response(uri)
 
-        unless response.code == '200'
-          raise "Failed to fetch JWKS: HTTP #{response.code}"
-        end
+        raise "Failed to fetch JWKS: HTTP #{response.code}" unless response.code == "200"
 
         jwks_data = JSON.parse(response.body)
         puts "Fetched #{jwks_data}  from JWKS"
@@ -223,38 +217,35 @@ module Oauth
       end
 
       def validate_userinfo(access_token, id_token_payload)
-        begin
-          puts "Fetching UserInfo from: #{@userinfo_url}"
+        puts "Fetching UserInfo from: #{@userinfo_url}"
 
-          uri = URI(@userinfo_url)
-          http = Net::HTTP.new(uri.host, uri.port)
-          http.use_ssl = uri.scheme == 'https'
+        uri = URI(@userinfo_url)
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = uri.scheme == "https"
 
-          request = Net::HTTP::Get.new(uri)
-          request['Authorization'] = "Bearer #{access_token}"
+        request = Net::HTTP::Get.new(uri)
+        request["Authorization"] = "Bearer #{access_token}"
 
-          response = http.request(request)
+        response = http.request(request)
 
-          unless response.code == '200'
-            puts "❌ UserInfo request failed: HTTP #{response.code}"
-            return
-          end
-
-          userinfo = JSON.parse(response.body)
-          puts "UserInfo retrieved successfully!"
-          puts "UserInfo claims:"
-          userinfo.each { |k, v| puts "  #{k}: #{v}" }
-
-          puts "Validating ID token against UserInfo..."
-          validate_claims_consistency(id_token_payload, userinfo)
-
-        rescue StandardError => e
-          puts "❌ Error validating UserInfo: #{e.message}"
+        unless response.code == "200"
+          puts "❌ UserInfo request failed: HTTP #{response.code}"
+          return
         end
+
+        userinfo = JSON.parse(response.body)
+        puts "UserInfo retrieved successfully!"
+        puts "UserInfo claims:"
+        userinfo.each { |k, v| puts "  #{k}: #{v}" }
+
+        puts "Validating ID token against UserInfo..."
+        validate_claims_consistency(id_token_payload, userinfo)
+      rescue StandardError => e
+        puts "❌ Error validating UserInfo: #{e.message}"
       end
 
       def validate_claims_consistency(id_token_payload, userinfo)
-        common_claims = ['sub', 'email', 'name', 'given_name', 'family_name']
+        common_claims = %w[sub email name given_name family_name]
         inconsistencies = []
 
         common_claims.each do |claim|

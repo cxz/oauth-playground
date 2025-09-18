@@ -34,6 +34,6 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "oauth2", "~> 2.0.17"
   spec.add_dependency "jwt", "~> 2.7"
+  spec.add_dependency "oauth2", "~> 2.0.17"
 end
