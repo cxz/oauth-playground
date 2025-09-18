@@ -8,6 +8,7 @@ require "uri"
 require "jwt"
 require "net/http"
 require "json"
+require "logger"
 
 module Oauth
   module Playground
@@ -21,7 +22,10 @@ module Oauth
     #      - Discovery and Dynamic Client Registration (optional for providers/clients that support them).
     #
     class PkceFlow
+      attr_reader :logger
+
       def initialize(options = {})
+        @logger = options[:logger] || Logger.new($stdout, level: Logger::INFO)
         @client_id = options[:client_id]
         @scope = options[:scope] || "openid email profile"
         @redirect_uri = options[:redirect_uri]
@@ -39,38 +43,38 @@ module Oauth
       end
 
       def start
-        puts "Starting OAuth2 PKCE Flow..."
-        puts "=" * 50
+        logger.info "Starting OAuth2 PKCE Flow..."
+        logger.info "=" * 50
 
         display_config
 
-        puts "\nStep 1: Generate PKCE parameters"
-        puts "Code Verifier: #{@code_verifier}"
-        puts "Code Challenge: #{@code_challenge}"
-        puts "Code Challenge Method: S256"
+        logger.info "\nStep 1: Generate PKCE parameters"
+        logger.info "Code Verifier: #{@code_verifier}"
+        logger.info "Code Challenge: #{@code_challenge}"
+        logger.info "Code Challenge Method: S256"
 
-        puts "\nStep 2: Build Authorization URL"
+        logger.info "\nStep 2: Build Authorization URL"
         auth_url = build_authorization_url
-        puts "Authorization URL:"
-        puts auth_url
+        logger.info "Authorization URL:"
+        logger.info auth_url
 
-        puts "\nStep 3: Open the URL in your browser and complete the authorization"
-        puts "After authorization, you'll be redirected with an authorization code"
-        puts "\nStep 4: Enter the authorization code to exchange for tokens"
+        logger.info "\nStep 3: Open the URL in your browser and complete the authorization"
+        logger.info "After authorization, you'll be redirected with an authorization code"
+        logger.info "\nStep 4: Enter the authorization code to exchange for tokens"
         print "Authorization code: "
 
         auth_code = gets.chomp
 
         if auth_code.empty?
-          puts "No authorization code provided. Exiting."
+          logger.warn "No authorization code provided. Exiting."
           return
         end
 
-        puts "\nStep 5: Exchange authorization code for tokens"
+        logger.info "\nStep 5: Exchange authorization code for tokens"
         exchange_code_for_tokens(auth_code)
       rescue StandardError => e
-        puts "Error: #{e.message}"
-        puts e.backtrace if ENV["DEBUG"]
+        logger.error "Error: #{e.message}"
+        logger.debug e.backtrace if ENV["DEBUG"]
       end
 
       private
@@ -90,18 +94,18 @@ module Oauth
       end
 
       def display_config
-        puts "Configuration:"
-        puts "  Client ID: #{@client_id}"
-        puts "  Scope: #{@scope}"
-        puts "  Redirect URI: #{@redirect_uri}"
-        puts "  Nonce: #{@nonce}" if @nonce
-        puts "  State: #{@state}" if @state
-        puts "  Auth URL: #{@auth_url}"
-        puts "  Token URL: #{@token_url}"
-        puts "  JWKS URI: #{@jwks_uri}" if @jwks_uri
-        puts "  UserInfo URL: #{@userinfo_url}" if @userinfo_url
-        puts "  Expected Issuer: #{@issuer}" if @issuer
-        puts "  Expected Audience: #{@audience}" if @audience
+        logger.info "Configuration:"
+        logger.info "  Client ID: #{@client_id}"
+        logger.info "  Scope: #{@scope}"
+        logger.info "  Redirect URI: #{@redirect_uri}"
+        logger.info "  Nonce: #{@nonce}" if @nonce
+        logger.info "  State: #{@state}" if @state
+        logger.info "  Auth URL: #{@auth_url}"
+        logger.info "  Token URL: #{@token_url}"
+        logger.info "  JWKS URI: #{@jwks_uri}" if @jwks_uri
+        logger.info "  UserInfo URL: #{@userinfo_url}" if @userinfo_url
+        logger.info "  Expected Issuer: #{@issuer}" if @issuer
+        logger.info "  Expected Audience: #{@audience}" if @audience
       end
 
       def build_authorization_url
@@ -138,32 +142,32 @@ module Oauth
           client_id: @client_id
         }
 
-        puts "Requesting tokens with parameters:"
-        token_params.each { |k, v| puts "  #{k}: #{v}" }
+        logger.info "Requesting tokens with parameters:"
+        token_params.each { |k, v| logger.info "  #{k}: #{v}" }
 
         token = client.auth_code.get_token(auth_code, token_params)
 
-        puts "\nTokens received successfully!"
-        puts "Access Token: #{token.token}"
-        puts "Refresh Token: #{token.refresh_token}" if token.refresh_token
-        puts "Token Type: #{token.params["token_type"]}"
-        puts "Expires In: #{token.params["expires_in"]} seconds" if token.params["expires_in"]
-        puts "ID Token: #{token.params["id_token"]}" if token.params["id_token"]
+        logger.info "\nTokens received successfully!"
+        logger.info "Access Token: #{token.token}"
+        logger.info "Refresh Token: #{token.refresh_token}" if token.refresh_token
+        logger.info "Token Type: #{token.params["token_type"]}"
+        logger.info "Expires In: #{token.params["expires_in"]} seconds" if token.params["expires_in"]
+        logger.info "ID Token: #{token.params["id_token"]}" if token.params["id_token"]
 
         if token.params["id_token"] && @jwks_uri
-          puts "\nStep 6: Validate ID Token"
+          logger.info "\nStep 6: Validate ID Token"
           validate_id_token(token.params["id_token"], token.token)
         end
       rescue OAuth2::Error => e
-        puts "OAuth2 Error: #{e.message}"
-        puts "Response: #{e.response.body}" if e.response
+        logger.error "OAuth2 Error: #{e.message}"
+        logger.error "Response: #{e.response.body}" if e.response
       end
 
       def validate_id_token(id_token, access_token)
-        puts "Fetching JWKS from: #{@jwks_uri}"
+        logger.info "Fetching JWKS from: #{@jwks_uri}"
         jwks = fetch_jwks(@jwks_uri)
 
-        puts "Decoding and validating ID token..."
+        logger.info "Decoding and validating ID token..."
         jwt_options = {
           algorithm: "RS256",
           jwks: jwks,
@@ -174,7 +178,7 @@ module Oauth
         jwt_options[:iss] = @issuer if @issuer
         jwt_options[:aud] = @audience if @audience
 
-        puts "JWT validation options: #{jwt_options.inspect}"
+        logger.debug "JWT validation options: #{jwt_options.inspect}"
 
         decoded_token, = JWT.decode(
           id_token,
@@ -184,24 +188,24 @@ module Oauth
         )
 
         payload = decoded_token
-        puts "ID Token validation successful!"
-        puts "Token claims:"
-        payload.each { |k, v| puts "  #{k}: #{v}" }
+        logger.info "ID Token validation successful!"
+        logger.info "Token claims:"
+        payload.each { |k, v| logger.info "  #{k}: #{v}" }
 
         if @nonce && payload["nonce"] != @nonce
-          puts "⚠️  WARNING: Nonce mismatch! Expected: #{@nonce}, Got: #{payload["nonce"]}"
+          logger.warn "⚠️  WARNING: Nonce mismatch! Expected: #{@nonce}, Got: #{payload["nonce"]}"
         else
-          puts "✅ Nonce validation passed"
+          logger.info "✅ Nonce validation passed"
         end
 
         if @userinfo_url
-          puts "\\nStep 7: Validate against UserInfo endpoint"
+          logger.info "\\nStep 7: Validate against UserInfo endpoint"
           validate_userinfo(access_token, payload)
         end
       rescue JWT::DecodeError => e
-        puts "❌ ID Token validation failed: #{e.message}"
+        logger.error "❌ ID Token validation failed: #{e.message}"
       rescue StandardError => e
-        puts "❌ Error validating ID token: #{e.message}"
+        logger.error "❌ Error validating ID token: #{e.message}"
       end
 
       def fetch_jwks(jwks_uri)
@@ -211,13 +215,13 @@ module Oauth
         raise "Failed to fetch JWKS: HTTP #{response.code}" unless response.code == "200"
 
         jwks_data = JSON.parse(response.body)
-        puts "Fetched #{jwks_data}  from JWKS"
+        logger.debug "Fetched #{jwks_data}  from JWKS"
 
         jwks_data
       end
 
       def validate_userinfo(access_token, id_token_payload)
-        puts "Fetching UserInfo from: #{@userinfo_url}"
+        logger.info "Fetching UserInfo from: #{@userinfo_url}"
 
         uri = URI(@userinfo_url)
         http = Net::HTTP.new(uri.host, uri.port)
@@ -229,19 +233,19 @@ module Oauth
         response = http.request(request)
 
         unless response.code == "200"
-          puts "❌ UserInfo request failed: HTTP #{response.code}"
+          logger.error "❌ UserInfo request failed: HTTP #{response.code}"
           return
         end
 
         userinfo = JSON.parse(response.body)
-        puts "UserInfo retrieved successfully!"
-        puts "UserInfo claims:"
-        userinfo.each { |k, v| puts "  #{k}: #{v}" }
+        logger.info "UserInfo retrieved successfully!"
+        logger.info "UserInfo claims:"
+        userinfo.each { |k, v| logger.info "  #{k}: #{v}" }
 
-        puts "Validating ID token against UserInfo..."
+        logger.info "Validating ID token against UserInfo..."
         validate_claims_consistency(id_token_payload, userinfo)
       rescue StandardError => e
-        puts "❌ Error validating UserInfo: #{e.message}"
+        logger.error "❌ Error validating UserInfo: #{e.message}"
       end
 
       def validate_claims_consistency(id_token_payload, userinfo)
@@ -258,10 +262,10 @@ module Oauth
         end
 
         if inconsistencies.empty?
-          puts "✅ All common claims are consistent between ID token and UserInfo"
+          logger.info "✅ All common claims are consistent between ID token and UserInfo"
         else
-          puts "⚠️  WARNING: Inconsistencies found:"
-          inconsistencies.each { |inconsistency| puts "  #{inconsistency}" }
+          logger.warn "⚠️  WARNING: Inconsistencies found:"
+          inconsistencies.each { |inconsistency| logger.warn "  #{inconsistency}" }
         end
       end
 
