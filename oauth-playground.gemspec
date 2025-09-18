@@ -35,4 +35,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "oauth2", "~> 2.0.17"
+  spec.add_dependency "jwt", "~> 2.7"
 end

@@ -1,0 +1,59 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "bundler/setup"
+require_relative "../lib/oauth/playground"
+require "optparse"
+
+options = {}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: bin/pkce [options]"
+
+  opts.on("--client-id CLIENT_ID", "OAuth client ID") do |v|
+    options[:client_id] = v
+  end
+
+  opts.on("--scope SCOPE", "OAuth scope (default: 'openid email profile')") do |v|
+    options[:scope] = v
+  end
+
+  opts.on("--redirect-uri URI", "Redirect URI") do |v|
+    options[:redirect_uri] = v
+  end
+
+  opts.on("--nonce NONCE", "OIDC nonce") do |v|
+    options[:nonce] = v
+  end
+
+  opts.on("--state STATE", "OAuth state") do |v|
+    options[:state] = v
+  end
+
+  opts.on("--auth-url URL", "Authorization server URL") do |v|
+    options[:auth_url] = v
+  end
+
+  opts.on("--token-url URL", "Token endpoint URL") do |v|
+    options[:token_url] = v
+  end
+
+  opts.on("--jwks-uri URI", "JWKS URI for ID token validation") do |v|
+    options[:jwks_uri] = v
+  end
+
+  opts.on("--userinfo-url URL", "UserInfo endpoint URL") do |v|
+    options[:userinfo_url] = v
+  end
+
+  opts.on("-h", "--help", "Show this help") do
+    puts opts
+    exit
+  end
+end.parse!
+
+# Set defaults
+options[:scope] ||= "openid email profile"
+
+pkce_flow = Oauth::Playground::PkceFlow.new(options)
+pkce_flow.start
