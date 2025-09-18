@@ -1,4 +1,4 @@
-# Oauth::Playground
+# OAuth Flows Playground
 
 Run `bin/console` for an interactive prompt. 
 
