@@ -1,6 +1,8 @@
 # Oauth::Playground
 
-Run `bin/console` for an interactive prompt.
+Run `bin/console` for an interactive prompt. 
+
+See `example_usage.sh`
 
 ## Installation
 
